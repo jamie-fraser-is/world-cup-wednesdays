@@ -1,0 +1,162 @@
+name: Deploy to AWS
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+
+env:
+  AWS_REGION: eu-west-2
+
+jobs:
+  deploy:
+    name: Deploy to AWS ECS
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment || 'staging' }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set environment variables
+        run: |
+          if [ "${{ github.event.inputs.environment }}" == "production" ] || [ "${{ github.ref }}" == "refs/heads/main" ]; then
+            echo "ENVIRONMENT=production" >> $GITHUB_ENV
+            echo "CLUSTER_NAME=wcw-production" >> $GITHUB_ENV
+            echo "SERVICE_NAME_BACKEND=wcw-backend-production" >> $GITHUB_ENV
+            echo "SERVICE_NAME_FRONTEND=wcw-frontend-production" >> $GITHUB_ENV
+          else
+            echo "ENVIRONMENT=staging" >> $GITHUB_ENV
+            echo "CLUSTER_NAME=wcw-staging" >> $GITHUB_ENV
+            echo "SERVICE_NAME_BACKEND=wcw-backend-staging" >> $GITHUB_ENV
+            echo "SERVICE_NAME_FRONTEND=wcw-frontend-staging" >> $GITHUB_ENV
+          fi
+
+      - name: Deploy CloudFormation stack
+        run: |
+          aws cloudformation deploy \
+            --template-file aws/cloudformation/infrastructure.yml \
+            --stack-name wcw-infrastructure-${{ env.ENVIRONMENT }} \
+            --parameter-overrides \
+              Environment=${{ env.ENVIRONMENT }} \
+              ImageTag=${{ github.sha }} \
+              DatabasePassword=${{ secrets.DB_PASSWORD }} \
+              JWTSecret=${{ secrets.JWT_SECRET }} \
+            --capabilities CAPABILITY_IAM \
+            --region ${{ env.AWS_REGION }}
+
+      - name: Update ECS service (Backend)
+        run: |
+          # Get the current task definition
+          TASK_DEFINITION=$(aws ecs describe-task-definition \
+            --task-definition wcw-backend-${{ env.ENVIRONMENT }} \
+            --query 'taskDefinition' \
+            --output json)
+
+          # Update the image in the task definition
+          NEW_TASK_DEFINITION=$(echo $TASK_DEFINITION | jq --arg IMAGE "${{ steps.login-ecr.outputs.registry }}/wcw-backend:${{ github.sha }}" \
+            '.containerDefinitions[0].image = $IMAGE | del(.taskDefinitionArn) | del(.revision) | del(.status) | del(.requiresAttributes) | del(.placementConstraints) | del(.compatibilities) | del(.registeredAt) | del(.registeredBy)')
+
+          # Register the new task definition
+          aws ecs register-task-definition \
+            --cli-input-json "$NEW_TASK_DEFINITION" \
+            --region ${{ env.AWS_REGION }}
+
+          # Update the service
+          aws ecs update-service \
+            --cluster ${{ env.CLUSTER_NAME }} \
+            --service ${{ env.SERVICE_NAME_BACKEND }} \
+            --task-definition wcw-backend-${{ env.ENVIRONMENT }} \
+            --region ${{ env.AWS_REGION }}
+
+      - name: Update ECS service (Frontend)
+        run: |
+          # Get the current task definition
+          TASK_DEFINITION=$(aws ecs describe-task-definition \
+            --task-definition wcw-frontend-${{ env.ENVIRONMENT }} \
+            --query 'taskDefinition' \
+            --output json)
+
+          # Update the image in the task definition
+          NEW_TASK_DEFINITION=$(echo $TASK_DEFINITION | jq --arg IMAGE "${{ steps.login-ecr.outputs.registry }}/wcw-frontend:${{ github.sha }}" \
+            '.containerDefinitions[0].image = $IMAGE | del(.taskDefinitionArn) | del(.revision) | del(.status) | del(.requiresAttributes) | del(.placementConstraints) | del(.compatibilities) | del(.registeredAt) | del(.registeredBy)')
+
+          # Register the new task definition
+          aws ecs register-task-definition \
+            --cli-input-json "$NEW_TASK_DEFINITION" \
+            --region ${{ env.AWS_REGION }}
+
+          # Update the service
+          aws ecs update-service \
+            --cluster ${{ env.CLUSTER_NAME }} \
+            --service ${{ env.SERVICE_NAME_FRONTEND }} \
+            --task-definition wcw-frontend-${{ env.ENVIRONMENT }} \
+            --region ${{ env.AWS_REGION }}
+
+      - name: Wait for deployment to complete
+        run: |
+          echo "Waiting for backend service to stabilize..."
+          aws ecs wait services-stable \
+            --cluster ${{ env.CLUSTER_NAME }} \
+            --services ${{ env.SERVICE_NAME_BACKEND }} \
+            --region ${{ env.AWS_REGION }}
+
+          echo "Waiting for frontend service to stabilize..."
+          aws ecs wait services-stable \
+            --cluster ${{ env.CLUSTER_NAME }} \
+            --services ${{ env.SERVICE_NAME_FRONTEND }} \
+            --region ${{ env.AWS_REGION }}
+
+      - name: Get deployment URL
+        run: |
+          LOAD_BALANCER_DNS=$(aws cloudformation describe-stacks \
+            --stack-name wcw-infrastructure-${{ env.ENVIRONMENT }} \
+            --query 'Stacks[0].Outputs[?OutputKey==`LoadBalancerDNS`].OutputValue' \
+            --output text \
+            --region ${{ env.AWS_REGION }})
+          
+          echo "🚀 Deployment complete!"
+          echo "🌐 Application URL: http://$LOAD_BALANCER_DNS"
+          echo "DEPLOYMENT_URL=http://$LOAD_BALANCER_DNS" >> $GITHUB_ENV
+
+      - name: Run smoke tests
+        run: |
+          echo "Running smoke tests against ${{ env.DEPLOYMENT_URL }}"
+          
+          # Test backend health endpoint
+          curl -f "${{ env.DEPLOYMENT_URL }}/api/health" || exit 1
+          
+          # Test frontend
+          curl -f "${{ env.DEPLOYMENT_URL }}/" || exit 1
+          
+          echo "✅ Smoke tests passed!"
+
+      - name: Notify deployment status
+        if: always()
+        run: |
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "✅ Deployment to ${{ env.ENVIRONMENT }} successful!"
+            echo "🌐 URL: ${{ env.DEPLOYMENT_URL }}"
+          else
+            echo "❌ Deployment to ${{ env.ENVIRONMENT }} failed!"
+          fi

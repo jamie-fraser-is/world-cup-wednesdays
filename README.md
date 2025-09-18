@@ -197,18 +197,67 @@ docker-compose exec backend npm run test:coverage
 
 ## 🚢 Deployment
 
-The application is designed to be deployed with Docker in any environment:
+### AWS Cloud Deployment (Recommended)
 
-### Production Deployment
-1. Set production environment variables
-2. Use `docker-compose.prod.yml` for production configuration
-3. Configure reverse proxy (nginx) for SSL termination
-4. Set up database backups and monitoring
+The application is designed for modern cloud deployment on AWS with full CI/CD automation:
 
-### Environment Considerations
-- **Development**: Full hot-reload with volume mounts
-- **Testing**: Isolated containers with test database
-- **Production**: Optimized builds with health checks
+#### Quick AWS Deployment
+1. **Fork the repository** and configure GitHub secrets:
+   ```
+   AWS_ACCESS_KEY_ID
+   AWS_SECRET_ACCESS_KEY
+   AWS_REGION
+   DB_PASSWORD
+   JWT_SECRET
+   ```
+
+2. **Push to main branch** - GitHub Actions automatically:
+   - Runs comprehensive tests
+   - Builds and pushes Docker images to ECR
+   - Deploys infrastructure via CloudFormation
+   - Updates ECS services with zero downtime
+   - Runs smoke tests
+
+3. **Access your application** at the provided Load Balancer URL
+
+#### AWS Architecture (eu-west-2)
+- **ECS Fargate Spot**: Cost-optimized serverless containers (~70% savings)
+- **RDS PostgreSQL**: t3.micro instance with cost optimizations
+- **Application Load Balancer**: High availability and SSL termination
+- **VPC**: Secure network isolation (single-AZ for cost savings)
+- **CloudWatch**: Optimized logging with short retention
+
+**Estimated Monthly Cost: $50-70 USD** (see [Cost Optimization Guide](aws/COST-OPTIMIZATION.md))
+
+#### Manual AWS Deployment
+```bash
+# Deploy infrastructure
+export DB_PASSWORD="your-secure-password"
+export JWT_SECRET="your-jwt-secret"
+./aws/scripts/deploy.sh staging
+
+# Build and push images
+./aws/scripts/build-and-push.sh
+
+# Run database migrations
+./aws/scripts/migrate-database.sh staging
+```
+
+See [AWS Deployment Guide](aws/README.md) for detailed instructions.
+
+### Local Development
+```bash
+# Start with Docker Compose
+docker-compose up --build
+
+# Or use npm scripts
+npm run dev
+```
+
+### Environment Support
+- **Development**: Local Docker with hot-reload
+- **Staging**: AWS with seed data and development features
+- **Production**: AWS with optimized settings and monitoring
 
 ## 🤝 Contributing
 
