@@ -28,8 +28,22 @@ CREATE TABLE competitions (
     winner_id INTEGER REFERENCES users(id),
     winner_entry_id INTEGER,
     bracket_size INTEGER,
+    is_admin_created BOOLEAN DEFAULT false, -- Allows admin to create additional competitions
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Round schedules table (host-configured round durations)
+CREATE TABLE round_schedules (
+    id SERIAL PRIMARY KEY,
+    competition_id INTEGER REFERENCES competitions(id),
+    round_number INTEGER NOT NULL,
+    round_name VARCHAR(100) NOT NULL, -- 'Round of 16', 'Quarterfinals', etc.
+    start_time TIMESTAMP,
+    end_time TIMESTAMP NOT NULL,
+    status VARCHAR(50) DEFAULT 'pending', -- pending, active, completed
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(competition_id, round_number)
 );
 
 -- Competition entries
@@ -113,3 +127,6 @@ CREATE INDEX idx_votes_match ON votes(match_id);
 CREATE INDEX idx_votes_user ON votes(user_id);
 CREATE INDEX idx_notifications_user ON notifications(user_id);
 CREATE INDEX idx_host_history_user ON host_history(user_id);
+CREATE INDEX idx_round_schedules_competition ON round_schedules(competition_id);
+CREATE INDEX idx_round_schedules_status ON round_schedules(status);
+CREATE INDEX idx_competitions_admin_created ON competitions(is_admin_created);

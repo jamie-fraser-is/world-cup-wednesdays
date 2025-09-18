@@ -31,6 +31,32 @@ router.post('/vote', auth, async (req, res) => {
       return res.status(400).json({ message: 'This match is not currently open for voting' });
     }
 
+    // Check if the round is currently active based on round schedules
+    const roundScheduleResult = await pool.query(`
+      SELECT start_time, end_time, round_name
+      FROM round_schedules
+      WHERE competition_id = $1 AND round_number = $2
+    `, [match.competition_id, match.round_number]);
+
+    if (roundScheduleResult.rows.length > 0) {
+      const schedule = roundScheduleResult.rows[0];
+      const now = new Date();
+      const startTime = new Date(schedule.start_time);
+      const endTime = new Date(schedule.end_time);
+
+      if (now < startTime) {
+        return res.status(400).json({ 
+          message: `Voting for ${schedule.round_name} has not started yet. Voting opens at ${startTime.toLocaleString()}.` 
+        });
+      }
+
+      if (now > endTime) {
+        return res.status(400).json({ 
+          message: `Voting for ${schedule.round_name} has ended. Voting closed at ${endTime.toLocaleString()}.` 
+        });
+      }
+    }
+
     // Check if entry is valid for this match
     if (entryId !== match.entry1_id && entryId !== match.entry2_id) {
       return res.status(400).json({ message: 'Invalid entry for this match' });

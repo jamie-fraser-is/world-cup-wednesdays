@@ -433,9 +433,14 @@ const Competition = () => {
                 <div>
                   <h4 className="text-sm font-medium text-blue-900">Voting Instructions</h4>
                   <p className="text-sm text-blue-700 mt-1">
-                    Click on your preferred choice in each match. You can change your vote anytime during the voting period. 
-                    Vote counts are hidden until the round ends to keep voting fair!
+                    Click on your preferred choice in each match. You can only vote during active round periods (see schedule above). 
+                    You can change your vote anytime during the active voting window. Vote counts are hidden until the round ends to keep voting fair!
                   </p>
+                  {roundSchedules.length > 0 && (
+                    <div className="mt-2 text-xs text-blue-600">
+                      💡 Check the schedule above to see which rounds are currently active for voting.
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

@@ -17,10 +17,26 @@ INSERT INTO user_stats (user_id, total_competitions, total_wins, total_votes_cas
 (5, 1, 0, 4, 0, 0.00);
 
 -- Insert demo competitions
-INSERT INTO competitions (title, topic, host_id, status, entry_deadline, voting_start, bracket_size) VALUES
-('Ultimate Office Snack Championship', 'The definitive battle to crown the supreme office snack. From healthy options to guilty pleasures - which snack will reign supreme?', 1, 'voting', NOW() - INTERVAL '1 day', NOW() - INTERVAL '12 hours', 16),
-('Best Coffee Shop in Town', 'Which local coffee shop serves the perfect cup? Submit your favorite spot and let the community decide!', 2, 'accepting_entries', NOW() + INTERVAL '3 days', NULL, NULL),
-('Greatest Movie of All Time', 'The ultimate cinematic showdown - which film deserves the crown?', 3, 'completed', NOW() - INTERVAL '14 days', NOW() - INTERVAL '10 days', 8);
+INSERT INTO competitions (title, topic, host_id, status, entry_deadline, voting_start, bracket_size, is_admin_created) VALUES
+('Ultimate Office Snack Championship', 'The definitive battle to crown the supreme office snack. From healthy options to guilty pleasures - which snack will reign supreme?', 1, 'voting', NOW() - INTERVAL '1 day', NOW() - INTERVAL '12 hours', 16, false),
+('Greatest Movie of All Time', 'The ultimate cinematic showdown - which film deserves the crown?', 3, 'completed', NOW() - INTERVAL '14 days', NOW() - INTERVAL '10 days', 8, false);
+
+-- Insert round schedules for the active competition
+INSERT INTO round_schedules (competition_id, round_number, round_name, start_time, end_time, status) VALUES
+-- Round 1: Round of 16 (currently active)
+(1, 1, 'Round of 16', NOW() - INTERVAL '12 hours', NOW() + INTERVAL '2 days', 'active'),
+-- Round 2: Quarterfinals (scheduled)
+(1, 2, 'Quarterfinals', NOW() + INTERVAL '2 days', NOW() + INTERVAL '4 days', 'pending'),
+-- Round 3: Semifinals (scheduled)
+(1, 3, 'Semifinals', NOW() + INTERVAL '4 days', NOW() + INTERVAL '6 days', 'pending'),
+-- Round 4: Final (scheduled)
+(1, 4, 'Final', NOW() + INTERVAL '6 days', NOW() + INTERVAL '8 days', 'pending');
+
+-- Round schedules for completed competition
+INSERT INTO round_schedules (competition_id, round_number, round_name, start_time, end_time, status) VALUES
+(2, 1, 'Quarterfinals', NOW() - INTERVAL '12 days', NOW() - INTERVAL '10 days', 'completed'),
+(2, 2, 'Semifinals', NOW() - INTERVAL '10 days', NOW() - INTERVAL '8 days', 'completed'),
+(2, 3, 'Final', NOW() - INTERVAL '8 days', NOW() - INTERVAL '6 days', 'completed');
 
 -- Insert entries for the snack competition (16 entries)
 INSERT INTO entries (competition_id, user_id, selection, image_url, bracket_position, is_ai_generated) VALUES
