@@ -1,0 +1,35 @@
+{
+  "name": "world-cup-wednesdays",
+  "version": "1.0.0",
+  "description": "Fortnightly competition platform for World Cup Wednesdays - A tournament bracket system for office competitions",
+  "main": "server/index.js",
+  "keywords": ["tournament", "competition", "bracket", "voting", "react", "nodejs", "postgresql"],
+  "author": "Your Name",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/world-cup-wednesdays.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/world-cup-wednesdays/issues"
+  },
+  "homepage": "https://github.com/yourusername/world-cup-wednesdays#readme",
+  "scripts": {
+    "dev": "docker-compose up --build",
+    "dev:detached": "docker-compose up -d --build",
+    "stop": "docker-compose down",
+    "logs": "docker-compose logs -f",
+    "install-all": "npm install && cd server && npm install && cd ../client && npm install",
+    "test": "concurrently \"npm run test:server\" \"npm run test:client\"",
+    "test:server": "docker-compose exec backend npm test",
+    "test:client": "docker-compose exec frontend npm test",
+    "test:coverage": "concurrently \"npm run test:server:coverage\" \"npm run test:client:coverage\"",
+    "test:server:coverage": "docker-compose exec backend npm run test:coverage",
+    "test:client:coverage": "docker-compose exec frontend npm run test:coverage",
+    "prod": "docker-compose -f docker-compose.yml -f docker-compose.prod.yml up --build",
+    "clean": "docker-compose down -v && docker system prune -f"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
